@@ -1,3 +1,4 @@
+
 import altair as alt
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -7,11 +8,11 @@ import pydeck as pdk
 import seaborn as sns
 import streamlit as st
 from plotly.subplots import make_subplots
-
+ 
 st.set_page_config(page_title="COVID-19 no Brasil", layout="wide")
 st.title("COVID-19 no Brasil")
 st.caption("Fonte: Ministerio da Saude - covid.saude.gov.br")
-
+ 
 # -----------------------------------------------------------------------------
 # Carga dos dados
 # -----------------------------------------------------------------------------
@@ -24,9 +25,11 @@ def carregar(arquivos):
  
     dados = pd.concat(partes, ignore_index=True)
     dados["data"] = pd.to_datetime(dados["data"])
-    # semana com o ano junto, para nao misturar a semana 7 de anos diferentes
+    # a semana epidemiologica vai de domingo a sabado
+
+    quarta = dados["data"] + pd.to_timedelta(3 - (dados["data"].dt.dayofweek + 1) % 7, unit="D")
     dados["semana"] = (
-        dados["data"].dt.year.astype(str)
+        quarta.dt.year.astype(str)
         + "-S"
         + dados["semanaEpi"].astype(str).str.zfill(2)
     )
@@ -47,12 +50,12 @@ arquivos = st.sidebar.file_uploader(
     type=["csv"],
     accept_multiple_files=True,
 )
-
-
+ 
+ 
 # =============================================================================
-# EXERCICIO 1 - IMPORTANCIA DA VISUALIZACAO DE DADOS
+# EXERCICIO 1
 # =============================================================================
-
+ 
 st.header("1. Importancia da visualizacao de dados")
 st.markdown(
     """
@@ -70,7 +73,7 @@ Vale a ressalva: o grafico tambem engana. Escala logaritmica ou linear muda a pe
 curva, e dado por data de notificacao nao e a mesma coisa que dado por data de ocorrencia.
     """
 )
-
+ 
 if not arquivos:
     st.info("Envie os arquivos CSV na barra lateral para carregar os graficos.")
     st.stop()
@@ -84,11 +87,10 @@ estados = dados[dados["estado"].notna() & dados["municipio"].isna() & dados["cod
 municipios = dados[dados["municipio"].notna()]
  
 st.success(f"{len(dados)} linhas carregadas.")
-
-
+ 
+ 
 # =============================================================================
-# EXERCICIO 2 - GRAFICO DE BARRAS COM STREAMLIT
-# Casos novos por semana epidemiologica no Rio de Janeiro
+# EXERCICIO 2 - GRAFICO DE BARRAS
 # =============================================================================
 st.header("2. Casos novos por semana - RJ (barras)")
  
@@ -130,7 +132,7 @@ um estado reprocessa obitos represados e lanca tudo de uma vez.
  
  
 # =============================================================================
-# EXERCICIO 4 - GRAFICO DE AREA COM STREAMLIT
+# EXERCICIO 4 - GRAFICO DE AREA 
 # Casos acumulados em tres estados
 # =============================================================================
 st.header("4. Casos acumulados em SP, RJ e AM (area)")
@@ -156,16 +158,16 @@ Para comparar gravidade seria preciso normalizar por 100 mil habitantes.
     """
 )
  
-
+ 
 # =============================================================================
 # EXERCICIO 5 - MAPA COM st.map
-# Casos acumulados por municipio no Rio de Janeiro
+# Casos acumulados no Rio de Janeiro
 # =============================================================================
 st.header("5. Casos acumulados por municipio - RJ (st.map)")
  
 coordenadas = carregar_coordenadas()
  
-municipios_rj = municipios[municipios["estado"] == "SP"].copy()
+municipios_rj = municipios[municipios["estado"] == "RJ"].copy()
 municipios_rj["codmun6"] = municipios_rj["codmun"].astype(int).astype(str).str[:6]
  
 mapa = (
@@ -180,15 +182,14 @@ st.map(mapa, latitude="latitude", longitude="longitude", size="tamanho")
  
 st.markdown(
     """
-Uma tabela ordenada por numero de casos sempre devolve as mesmas capitais no topo. O mapa mostra
-o que a tabela esconde: o **padrao espacial**. Da para ver a difusao saindo da capital para a
+Uma tabela ordenada por numero de casos sempre devolve as mesmas capitais no topo. Da para ver a difusao saindo da capital para a
 regiao metropolitana e depois acompanhando os eixos rodoviarios ate o interior, e da para
-identificar municipios vizinhos com comportamentos diferentes, o que costuma indicar diferenca
-de politica sanitaria ou de capacidade de testagem.
+identificar municipios vizinhos com comportamentos diferentes, o que pode indicar diferenca
+de politica sanitaria ou de testagem.
     """
 )
  
-
+ 
 # =============================================================================
 # EXERCICIO 6 - MATPLOTLIB
 # Casos novos x obitos novos por estado na semana mais recente
@@ -214,25 +215,13 @@ eixo.set_yscale("log")  # sem log os obitos somem ao lado dos casos
 eixo.legend()
 st.pyplot(figura)
  
-st.markdown(
-    """
-As duas series sao de ordens de grandeza muito diferentes, por isso a escala logaritmica. Isso ja
-e a informacao principal: a letalidade registrada fica na casa de poucos por cento.
- 
-A razao obitos/casos nao e igual entre os estados, e a diferenca raramente e biologica. Ela
-reflete testagem (quanto mais se testa, mais casos leves entram no denominador e menor parece a
-letalidade), estrutura hospitalar e perfil etario. Ha ainda a defasagem: o obito de uma semana
-corresponde ao caso de duas ou tres semanas antes, entao comparar a mesma semana subestima a
-letalidade quando a curva esta subindo.
-    """
-)
  
  
 # =============================================================================
 # EXERCICIO 7 - BOXPLOT COM SEABORN
 # Distribuicao dos casos novos semanais em tres regioes
 # =============================================================================
-st.header("7. Distribuicao dos casos novos por regiao (Seaborn)")
+st.header("7. Distribuicao dos casos novos por regiao")
  
 tres_regioes = estados[estados["regiao"].isin(["Norte", "Nordeste", "Sudeste"])]
 base_box = tres_regioes.groupby(["regiao", "semana"])["casosNovos"].sum().reset_index()
@@ -244,10 +233,8 @@ st.pyplot(figura_box)
  
 st.markdown(
     """
-O Sudeste tem mediana e amplitude bem maiores, mas parte disso e so populacao: sao mais que o
-dobro de habitantes do Nordeste.
- 
-O achado que importa e a **assimetria**, igual nas tres regioes: a mediana fica na parte inferior
+O Sudeste tem mediana e amplitude bem maiores por conta da diferença populacional.
+ Nota-se uma assimetria igual nas tres regioes: a mediana fica na parte inferior
 da caixa e ha muitos outliers acima. Essa e a assinatura de uma epidemia em ondas, onde a maior
 parte das semanas tem transmissao baixa e poucas semanas concentram um volume enorme de casos. E
 justamente isso que estoura a capacidade hospitalar, porque o sistema e dimensionado para a
@@ -260,7 +247,7 @@ mediana e nao para o outlier.
 # EXERCICIO 8 - GRAFICO DE AREA COM ALTAIR
 # Casos novos por semana na regiao Sudeste
 # =============================================================================
-st.header("8. Casos novos por semana - Sudeste (Altair)")
+st.header("8. Casos novos por semana - Sudeste")
  
 sudeste = estados[estados["regiao"] == "Sudeste"].groupby("semana")["casosNovos"].sum().reset_index()
  
@@ -290,18 +277,18 @@ vacinacao e da menor gravidade da variante.
  
  
 # =============================================================================
-# EXERCICIO 9 - HEATMAP COM ALTAIR
-# Correlacao entre as variaveis disponiveis no RJ
+# EXERCICIO 9 - HEATMAP
+# Correlacao entre casos novos e obitos novos no RJ
 # =============================================================================
-st.header("9. Heatmap de correlacao - RJ (Altair)")
+st.header("9. Heatmap de correlacao - RJ")
  
 st.info(
     "O painel Coronavirus Brasil nao publica ocupacao de leitos (esse dado ficava no e-SUS/SRAG "
     "e nos paineis estaduais). Como o enunciado condiciona o item a disponibilidade, o heatmap "
-    "usa as variaveis que o arquivo traz."
+    "usa casos novos e obitos novos."
 )
  
-colunas = ["casosNovos", "obitosNovos", "Recuperadosnovos", "emAcompanhamentoNovos"]
+colunas = ["casosNovos", "obitosNovos"]
 correlacao = estados[estados["estado"] == "RJ"][colunas].corr()
 matriz = correlacao.reset_index().melt(id_vars="index")
 matriz.columns = ["variavel_x", "variavel_y", "correlacao"]
@@ -336,7 +323,7 @@ o volume de testagem, que infla as duas ao mesmo tempo.
  
  
 # =============================================================================
-# EXERCICIO 10 - GRAFICO DE PIZZA COM PLOTLY
+# EXERCICIO 10 - GRAFICO DE PIZZA
 # Casos acumulados entre as cinco regioes
 # =============================================================================
 st.header("10. Casos acumulados por regiao (Plotly)")
@@ -351,12 +338,11 @@ st.plotly_chart(figura_pizza, use_container_width=True)
 st.markdown(
     """
 O Sudeste responde sozinho por cerca de 40% dos casos acumulados, seguido de Nordeste e Sul.
-Parece um mapa da epidemia, mas e em boa medida um mapa da populacao brasileira: o Sudeste
-concentra por volta de 42% dos habitantes do pais, praticamente a mesma fatia.
+o Sudeste concentra por volta de 42% dos habitantes do pais, praticamente a mesma fatia.
  
 Essa e a limitacao do grafico de pizza aqui. Ele mostra participacao no total, nao intensidade.
 Dividindo por populacao o ranking muda. A pizza serve para dimensionar a carga absoluta sobre
-cada regiao, nao para dizer onde a epidemia foi pior.
+cada regiao, nao para dizer onde a pandemia foi pior.
     """
 )
  
@@ -381,11 +367,10 @@ st.plotly_chart(figura_sub, use_container_width=True)
 st.markdown(
     """
 Os eixos Y sao independentes, senao o Norte viraria uma faixa achatada. Isso exige atencao: a
-altura das barras nao e comparavel entre os dois paineis, so o formato das curvas e.
+altura das barras nao e comparavel entre os dois paineis, so o formato das curvas mesmo.
  
-E o formato mostra que a epidemia nao foi simultanea no pais. O Norte teve um primeiro pico
-precoce e severo (Manaus, abril de 2020), enquanto o Sudeste teve sua onda mais grave depois.
-Essa defasagem foi o que permitiu, em alguns momentos, transferir pacientes entre estados. Dentro
+E o formato mostra que a pandemia nao foi simultanea no pais. O Norte teve um primeiro pico
+precoce e severo (Manaus, abril de 2020), enquanto o Sudeste teve sua onda mais grave depois, em setembro. Dentro
 de cada painel, a proporcao entre a barra de casos e a de obitos diminui a partir de 2021, efeito
 da vacinacao sobre a letalidade.
     """
@@ -393,7 +378,7 @@ da vacinacao sobre a letalidade.
  
  
 # =============================================================================
-# EXERCICIO 12 - MAPA INTERATIVO COM PYDECK
+# EXERCICIO 12 - MAPA INTERATIVO
 # Casos acumulados por municipio ajustados pela populacao - Sudeste
 # =============================================================================
 st.header("12. Casos por 100 mil habitantes - Sudeste (PyDeck)")
@@ -437,15 +422,11 @@ st.pydeck_chart(
 st.markdown(
     """
 A COVID-19 se transmite por contato proximo, entao a taxa de contato entre pessoas e o parametro
-central. Densidade alta aumenta essa taxa por varias vias ao mesmo tempo: transporte coletivo
-lotado, domicilios com muitos moradores por comodo e menor possibilidade pratica de isolamento.
+central. Densidade alta aumenta essa taxa por varias vias ao mesmo tempo: transporte publico
+lotado, casas com muitas pessoas morando e menor possibilidade pratica de isolamento.
 Por isso as capitais e regioes metropolitanas aparecem como as colunas mais altas, e por isso a
-epidemia comecou nelas antes de chegar ao interior.
- 
-Duas ressalvas. O mapa mostra casos por 100 mil habitantes, que e incidencia e nao densidade:
-municipio denso e municipio com muita testagem produzem colunas altas pelo mesmo motivo aparente.
-E densidade nao e destino, ja que cidades asiaticas densas controlaram a transmissao com testagem
-e rastreamento. A densidade define o potencial de disseminacao; a resposta sanitaria define o
-resultado.
+pandemia comecou nelas antes de chegar ao interior.
     """
 )
+
+# PS: Utilizei todos os CSVS disponíveis na página para fazer os markdowns.
